@@ -1,0 +1,40 @@
+
+server:
+  port: 8080
+
+
+# ===== ???swagger?? ===== #
+swagger:
+  enable: true
+  application-name: ${spring.application.name}
+  application-version: 1.0
+  application-description: springfox swagger 2.9
+  try-host: http://localhost:${server.port}
+
+security:
+  ignored: /swagger-resources/**
+
+spring:
+  #????
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+
+  application:
+    name: PetDoctor
+  datasource:
+    url: jdbc:mysql://localhost:3306/pet_doctor?useUnicode=true&characterEncoding=UTF-8&useSSL=false
+    driverClassName: com.mysql.jdbc.Driver
+    username: root
+    password: 1933
+
+
+mybatis-plus:
+  type-aliases-package: com.example.petdoctor.pojo
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    map-underscore-to-camel-case: true
+  mapper-locations: classpath:com/example/petdoctor/mapper/*.xml
