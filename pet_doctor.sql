@@ -1,5 +1,8 @@
+CREATE DATABASE IF NOT EXISTS pet_doctor DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci;
+
+
 -- 1. 删除表的顺序依赖，防止外键约束问题
-DROP TABLE IF EXISTS ConsultationRecord;
+DROP TABLE IF EXISTS ConsultationMessage;
 DROP TABLE IF EXISTS Consultation;
 DROP TABLE IF EXISTS Prescription_Medicine;
 DROP TABLE IF EXISTS Prescription;
@@ -11,7 +14,7 @@ DROP TABLE IF EXISTS RecommendedProduct;
 DROP TABLE IF EXISTS Promotion_Product;
 DROP TABLE IF EXISTS Promotion;
 DROP TABLE IF EXISTS Order_Product;
-DROP TABLE IF EXISTS Order;
+DROP TABLE IF EXISTS `Order`;
 DROP TABLE IF EXISTS Product;
 DROP TABLE IF EXISTS Pet;
 DROP TABLE IF EXISTS Doctor;
@@ -62,35 +65,39 @@ CREATE TABLE Pet (
 
 -- 3. 医疗相关表
 
+
+
 -- 问诊记录表
+
+DROP TABLE IF EXISTS Consultation;
 CREATE TABLE Consultation (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '问诊记录的唯一标识',
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '问诊的唯一标识',
     user_id BIGINT NOT NULL COMMENT '用户ID，引用User表',
     doctor_id BIGINT NOT NULL COMMENT '医生ID，引用Doctor表',
     pet_id BIGINT COMMENT '宠物ID，引用Pet表',
-    consultation_type ENUM('text', 'phone') COMMENT '问诊类型（图文或电话）',
-    description TEXT COMMENT '问诊的详细描述',
-    upload_url VARCHAR(255) COMMENT '用户上传的图片或视频URL',
-    consultation_date DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '问诊记录的创建时间',
-    doctor_reply TEXT COMMENT '医生的回复',
+    consultation_type ENUM('text', 'phone') COMMENT '问诊类型，图文或电话',
+    description TEXT COMMENT '问诊描述',
     status ENUM('pending', 'completed') DEFAULT 'pending' COMMENT '问诊状态',
+    consultation_date DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '问诊创建时间',
+    last_message_date DATETIME COMMENT '最后一条消息的时间',
     FOREIGN KEY (user_id) REFERENCES User(id),
     FOREIGN KEY (doctor_id) REFERENCES Doctor(id),
     FOREIGN KEY (pet_id) REFERENCES Pet(id)
-) COMMENT='问诊记录表，存储用户与医生的问诊详情';
+) COMMENT='问诊表，存储问诊的基本信息';
 
 -- 诊室记录表
-CREATE TABLE ConsultationRecord (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '诊室记录的唯一标识',
-    user_id BIGINT NOT NULL COMMENT '用户ID，引用User表',
-    doctor_id BIGINT NOT NULL COMMENT '医生ID，引用Doctor表',
-    consultation_date DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '诊室记录的创建时间',
-    diagnosis TEXT COMMENT '医生的诊断意见',
-    treatment_plan TEXT COMMENT '医生给出的治疗方案',
-    follow_up BOOLEAN DEFAULT FALSE COMMENT '是否需要后续随访',
-    FOREIGN KEY (user_id) REFERENCES User(id),
-    FOREIGN KEY (doctor_id) REFERENCES Doctor(id)
-) COMMENT='诊室记录表，存储用户与医生的每次问诊记录，包括诊断和治疗方案';
+DROP TABLE IF EXISTS ConsultationRecord;
+DROP TABLE IF EXISTS ConsultationMessage;
+CREATE TABLE ConsultationMessage (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '消息的唯一标识',
+    consultation_id BIGINT NOT NULL COMMENT '问诊ID，引用Consultation表',
+    sender ENUM('user', 'doctor') NOT NULL COMMENT '消息发送者（用户或医生）',
+    message_type ENUM('text', 'voice') NOT NULL COMMENT '消息类型，文本或语音',
+    message_content TEXT COMMENT '文本消息的内容',
+    voice_url VARCHAR(255) COMMENT '语音消息的存储URL',
+    send_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '消息发送的时间',
+    FOREIGN KEY (consultation_id) REFERENCES Consultation(id)
+) COMMENT='问诊消息表，存储用户和医生的每条对话信息';
 
 -- 处方表
 CREATE TABLE Prescription (
@@ -178,4 +185,43 @@ CREATE TABLE RecommendedProduct (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '推荐商品的唯一标识',
     product_id BIGINT NOT NULL COMMENT '商品ID，引用Product表',
     recommendation_reason TEXT COMMENT '推荐理由，描述该商品为何被推荐',
-    display_order INT DEFAULT 0 COMMENT '显示顺序，控制商品
+    display_order INT DEFAULT 0 COMMENT '显示顺序，控制商品的展示顺序',
+    FOREIGN KEY (product_id) REFERENCES Product(id)
+) COMMENT='推荐商品表，存储系统推荐给用户的商品信息';
+
+-- 症状表
+CREATE TABLE Symptom (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '症状的唯一标识',
+    name VARCHAR(100) NOT NULL COMMENT '症状名称',
+    description TEXT COMMENT '症状的详细描述',
+    category ENUM('cat', 'dog', 'small_pet', 'bird', 'fish') COMMENT '症状所属类别，标识是猫、狗还是其他宠物',
+    advice TEXT COMMENT '医生的建议或预防措施'
+) COMMENT='症状表，存储不同种类宠物的常见症状及相关建议';
+
+-- 热门关注表
+CREATE TABLE HotConcern (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '热门关注的唯一标识',
+    symptom_id BIGINT NOT NULL COMMENT '症状ID，引用Symptom表',
+    category ENUM('cat', 'dog') NOT NULL COMMENT '类别，标识是猫还是狗相关的症状',
+    display_order INT DEFAULT 0 COMMENT '显示顺序，控制热门关注的展示顺序',
+    FOREIGN KEY (symptom_id) REFERENCES Symptom(id)
+) COMMENT='热门关注表，存储用户热门查询的症状及分类信息';
+
+-- 症状与药品的关联表
+CREATE TABLE Medicine_Symptom (
+    medicine_id BIGINT NOT NULL COMMENT '药品ID，引用Medicine表',
+    symptom_id BIGINT NOT NULL COMMENT '症状ID，引用Symptom表',
+    FOREIGN KEY (medicine_id) REFERENCES Medicine(id),
+    FOREIGN KEY (symptom_id) REFERENCES Symptom(id),
+    PRIMARY KEY (medicine_id, symptom_id)
+) COMMENT='药品与症状关联表，存储能够缓解某些症状的药品信息';
+
+-- 症状与医生的推荐表
+CREATE TABLE Symptom_Doctor (
+    symptom_id BIGINT NOT NULL COMMENT '症状ID，引用Symptom表',
+    doctor_id BIGINT NOT NULL COMMENT '医生ID，引用Doctor表',
+    recommendation_level INT DEFAULT 0 COMMENT '推荐等级，值越大越推荐',
+    FOREIGN KEY (symptom_id) REFERENCES Symptom(id),
+    FOREIGN KEY (doctor_id) REFERENCES Doctor(id),
+    PRIMARY KEY (symptom_id, doctor_id)
+) COMMENT='症状与医生的推荐表，记录某症状推荐的医生及其推荐级别';
